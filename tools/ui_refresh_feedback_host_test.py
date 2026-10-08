@@ -300,7 +300,8 @@ static bool wifi,bluetooth,s_system_ttf;
 static bool ttf_font_is_builtin(void){return false;}
 static char signature[96];
 static const pmu_snapshot_t *read_pico_pmu_get(void){return &pmu;}
-static int pmu_battery_percent(const pmu_snapshot_t *snapshot){(void)snapshot;return pct;}
+// 与真实油量表一致，仅返回0..100或未知值-1。/ Match the real gauge's 0..100 or unknown -1 contract.
+static int pmu_battery_percent(const pmu_snapshot_t *snapshot){(void)snapshot;return pct>=0&&pct<=100?pct:-1;}
 static bool pmu_battery_charging(const pmu_snapshot_t *snapshot){(void)snapshot;return false;}
 static void read_pico_transfer_get_status(read_pico_transfer_status_t *status){*status=(read_pico_transfer_status_t){wifi,READ_PICO_TRANSFER_MODE_STA};}
 static bool app_settings_ble_turner(void){return bluetooth;}
@@ -356,6 +357,7 @@ with tempfile.TemporaryDirectory() as folder:
     for name, unit in (("shelf", shelf), ("status", status)):
         source, binary = Path(folder) / (name + ".c"), Path(folder) / name
         source.write_text(unit)
-        subprocess.run(["cc", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined",
+        # 让GCC看见内联油量表的值域；保留所有警告和检测器。/ Expose the inline gauge range to GCC; retain warnings and sanitizers.
+        subprocess.run(["cc", "-std=gnu11", "-O1", "-UNDEBUG", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined",
                         str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
